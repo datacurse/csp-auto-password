@@ -1,96 +1,207 @@
-# De-itzmx (v4.2.0 Patch1) — Remove itzmx Anti-Resale Layer
+# De-itzmx patch — remove the itzmx anti-resale layer (v4.2.0 Patch1)
 
-Bypass the itzmx anti-resale layer in CLIP Studio Paint v4.2.0 Patch1 (start password, splash, tamper/marketing popups) without the old `auto_password` pywinauto launcher, which itzmx actively detects.
+Double-click the **normal** CLIP Studio Paint icon and it starts straight into
+the canvas: no daily password, no website splash, no Chinese tamper warning, no
+random document pop-ups — and **no external launcher process**.
 
-## TL;DR — recommended usage
+This document explains what the itzmx layer is, what we tried, what finally
+worked, and how to build or remove the patch.
 
-```bat
-pip install -r ..\requirements.txt
-python tools\deitzmx_launcher.py
+## Target build
+
+| Item | Value |
+|------|-------|
+| Exe | `CLIPStudioPaint.exe` |
+| SHA256 | `868BBC5637563E68BD98220AD1D4EE3A5B7FDEADDCED1C368E7141014C3653CB` |
+| Install path (typical) | `C:\Program Files\CELSYS\CLIP STUDIO 1.5\CLIP STUDIO PAINT\` |
+
+The password/splash are **daily-gated** (once per calendar day). On an already-authed day nothing appears either way.
+
+---
+
+## What itzmx does
+
+The redistributed CSP build wraps the real executable in a **VM-based protector**
+(similar in spirit to Themida/VMProtect):
+
+- Hijacks the PE entry point into encrypted sections (`sec8`, `sec9`).
+- Decrypts the original code at runtime and virtualizes ~22 critical API imports.
+- Shows a daily **password dialog** (`Application requires password to start`).
+- Shows a **website/splash** (embedded browser — sets `FEATURE_BROWSER_EMULATION`
+  for `CLIPStudioPaint.exe`, loads `winhttp`/`ole32`, sleeps 3–4 s).
+- Runs **anti-tamper**: byte-patching the protector or exe triggers
+  `警告！禁止擅自串改语言文件！` (“Do not tamper with language files!”).
+- Validates the **exe import table / PE integrity** — any edit to the exe itself
+  aborts with exit code 1.
+
+Two `.txt` key files in the install folder are required; deleting them breaks launch.
+
+---
+
+## What we tried (and why it failed)
+
+| Approach | Outcome |
+|----------|---------|
+| pywinauto / `WM_SETTEXT` auto-fill | Works intermittently; update #33 penalizes fast auto-input |
+| Disk patch / NOP gates in decrypted memory | Triggers tamper warning |
+| Full unpack + rebuild (OEP dump, IAT reconstruction) | 22 VM-virtualized imports unresolved → crash in `sec8` |
+| Import-table inject `frida-gadget` into exe | Exit code 1 — protector rejects **any exe modification** |
+| Import inject tiny helper DLL into exe | Same — even a no-op helper import kills the process |
+| Proxy `ailia_blas.dll` (loads ~3.3 s) | Process survives, hooks run — but **too late** for the password (~2.2 s) |
+
+The breakthrough: **never touch the exe**. Load our code via **DLL search-order
+shadowing** of a system DLL that CSP loads **before** the password dialog.
+
+---
+
+## Final design (what works)
+
+```
+CLIPStudioPaint.exe          ← byte-identical original, never modified
+  │
+  └─► SHFolder.dll           ← our proxy (added to install folder)
+        ├─► SHGetFolderPathA/W  forwarded to SHFolder_orig.dll
+        └─► DllMain → CreateThread(worker)
+              └─► Sleep(250ms)   ← wait until loader lock is done
+                    └─► LoadLibrary("deitzmx.dll")   ← frida-gadget, renamed
+                          └─► deitzmx.config (script mode)
+                                └─► deitzmx_hook.js  ← frida_deitzmx.js
 ```
 
-This launches CSP, auto-submits the start password the **safe way (clipboard paste)**, skips the splash, dismisses the Chinese tamper/marketing dialogs, blocks the random anti-resale document popup, then detaches and leaves CSP running.
+### Why `SHFolder.dll`
 
-## What the Chinese popup means
+CSP loads these **non-KnownDLL** system DLLs by name very early (~100 ms):
 
-If you saw **警告！** with **禁止擅自串改语言文件！** (“Do not tamper with language files!”), that is itzmx's **self-integrity / anti-tamper** check. It fires when the protected code is modified.
+- `SHFolder.dll` — **2 exports**, ideal to forward
+- `msimg32.dll`, `uxtheme.dll`, `dwmapi.dll`, … — also early, usable as fallbacks
 
-Key finding from RE: **byte-patching the protection's own code (on disk or in memory) trips this check.** So we do NOT patch the exe. We let the original code run and handle the dialog through the normal UI, which is what the author explicitly permits ("manual paste is unaffected").
+`SHFolder` is **not** in the Windows KnownDLLs list, so placing a copy in the
+install folder shadows `C:\Windows\System32\SHFolder.dll` (app dir wins in
+search order). Nothing existing in the install folder is modified — the shadow
+is purely **additive**.
 
-## How the bypass works
+Load timing (prompt day, measured via `LdrLoadDll` hooks):
 
-The itzmx v4.2 `CLIPStudioPaint.exe` keeps its anti-resale logic in **encrypted sections** (`sec8` ~0.4% / `sec9` ~62% match between disk and decrypted memory; first-MB entropy ~8.0). It decrypts at runtime and self-hashes its code. Therefore:
+| Time | Event |
+|------|-------|
+| ~100 ms | `SHFolder.dll` loaded → our proxy runs |
+| ~250 ms | worker thread loads `deitzmx.dll` + hooks |
+| ~2250 ms | password dialog would appear → **suppressed at creation** |
+| ~3300 ms | `ailia_blas.dll` (too late to catch password) |
 
-| Approach | Result |
-|----------|--------|
-| Patch decrypted exe on disk | **Crash** (`0xC0000005`) — loader expects encrypted sections |
-| NOP the password/validation gates in memory | **Triggers** the 串改语言文件 tamper warning |
-| Delete the two `.txt` key files | Exe refuses to run (`改一个字就无法运行`) |
-| **Auto-submit the password via the dialog UI (clipboard paste)** | **Works**, no tamper warning, crack intact |
+### Why deferred load
 
-The password dialog (title `Application requires password to start`, window class `Window`) hides its input as a **nested `Edit`** control (reachable only via recursive `EnumChildWindows`, not a direct child) plus a `&OK` `Button`. The launcher:
+Loading frida-gadget **during the loader lock** (static import or early
+`LoadLibrary` from `DllMain`) caused immediate exit code 1. The proxy's
+`DllMain` only calls `CreateThread`; the worker waits 250 ms then loads the
+gadget. This matches the safe timing of `frida.spawn` (late injection), which
+we validated first.
 
-1. Finds the dialog and its nested `Edit` + `&OK` controls.
-2. Puts the password on the clipboard and sends `WM_PASTE` (mimics human paste; avoids `WM_SETTEXT`, which update #33 penalizes).
-3. Clicks `&OK`.
-4. Hooks `Sleep` (skip 3.4s splash), `MessageBoxW/A`, dialog APIs, and `ShellExecuteW` (block random doc popup).
+### What the hook script does
 
-```mermaid
-flowchart TD
-    launch[deitzmx_launcher.py spawns CSP] --> inject[Frida injects frida_deitzmx.js]
-    inject --> dlg{password dialog?}
-    dlg -->|yes| paste[clipboard paste into nested Edit + click OK]
-    dlg -->|no| run[CSP main app]
-    paste --> run
-    inject --> sleep[zero out 3.4s splash Sleep]
-    inject --> popups[dismiss tamper/marketing MessageBox + block ShellExecute]
+`frida_deitzmx.js` — **UI hooks only** (no memory patches; those trip tamper):
+
+1. **Password** — find dialog by title, recurse `EnumChildWindows` for nested
+   `Edit`, paste password via clipboard + `WM_PASTE` (author-sanctioned), click OK.
+2. **Splash** — zero out `Sleep(3000–4000)` calls.
+3. **Tamper/marketing** — auto-dismiss matching `MessageBoxW/A` and dialog APIs.
+4. **Random doc popup** — block matching `ShellExecuteW` targets.
+
+---
+
+## Files in this repo
+
+| Path | Role |
+|------|------|
+| `native/deitzmx_helper.c` | Proxy DLL source (forward exports + deferred gadget loader) |
+| `frida_deitzmx.js` | Suppression hooks (copied to install dir as `deitzmx_hook.js`) |
+| `bin/frida-gadget.dll` | Upstream frida-gadget (renamed to `deitzmx.dll` at deploy) |
+| `build_proxy.py` | Build proxy + stage payload under `output/proxy/` |
+| `deploy_proxy.ps1` | Copy staged files into CSP install dir (elevated) |
+| `restore_proxy.ps1` | Remove patch files (elevated) |
+| `_deploy_hook.ps1` | Redeploy hook script only after editing `frida_deitzmx.js` |
+| `verify_clock.ps1` | Dev test: advance clock +1 day, launch, restore (elevated) |
+
+Build output goes to `tools/output/proxy/` (gitignored).
+
+---
+
+## Build & deploy
+
+**Requirements:** Python 3 with `lief`, MinGW gcc (`gcc` on PATH or at
+`C:\ProgramData\mingw64\mingw64\bin\gcc.exe`).
+
+```powershell
+pip install lief
+
+# 1. Build proxy + stage payload
+python tools\build_proxy.py --target SHFolder --source-dir C:\Windows\System32
+
+# 2. Deploy (elevated — close CSP first)
+powershell -Verb RunAs -ExecutionPolicy Bypass -File tools\deploy_proxy.ps1 -Stem SHFolder
 ```
 
-## Verify install fingerprint
+Then use CSP normally (desktop icon, Start menu, etc.).
 
-```bat
-python tools\verify_install.py
+### Files added to the install folder
+
+| File | Size (approx) | Purpose |
+|------|---------------|---------|
+| `SHFolder.dll` | 4.6 KB | Proxy |
+| `SHFolder_orig.dll` | 28 KB | Real System32 SHFolder |
+| `deitzmx.dll` | 23 MB | frida-gadget |
+| `deitzmx.config` | tiny | Gadget script path |
+| `deitzmx_hook.js` | ~9 KB | Suppression hooks |
+
+---
+
+## Uninstall
+
+```powershell
+powershell -Verb RunAs -ExecutionPolicy Bypass -File tools\restore_proxy.ps1 -Stem SHFolder
 ```
 
-Expected exe SHA256: `868BBC5637563E68BD98220AD1D4EE3A5B7FDEADDCED1C368E7141014C3653CB`
+Deletes the five files above. CSP returns to original (annoying) behavior.
 
-## Validate the bypass
+---
 
-```bat
-python tools\validate_deitzmx.py --wait 30
+## Update hook only
+
+After editing `frida_deitzmx.js`:
+
+```powershell
+python tools\build_proxy.py --target SHFolder --source-dir C:\Windows\System32
+powershell -Verb RunAs -ExecutionPolicy Bypass -File tools\_deploy_hook.ps1
 ```
 
-Passes when: hooks load, password is auto-submitted, no tamper warning, dialog closed, CSP still alive.
+---
 
-## Tooling
+## Verify (optional)
 
-| Script | Purpose |
-|--------|---------|
-| `deitzmx_launcher.py` | **Main entry point** — launch CSP with the bypass |
-| `frida_deitzmx.js` | The runtime hooks (password autofill + splash/popup bypass) |
-| `validate_deitzmx.py` | Automated end-to-end validation |
-| `frida_launcher.py` | Generic Frida runner for any script (debug) |
-| `frida_diag.js` | Enumerate the password dialog's windows/controls |
-| `verify_install.py` | Confirm the installed exe + key files match the known build |
-| `analyze_exe.py` | PE entropy / sections / string-marker scan |
-| `memory_scan.py` / `memory_dump.py` | Find decrypted strings; map to RVAs/offsets |
-| `find_xrefs.py` / `scan_pointer_refs.py` | Locate code references in decrypted memory |
-| `compare_disk_memory.py` | Disk vs decrypted-section diff |
-| `dump_decrypted_sections.py` / `build_deitzmx_exe.py` | Experimental decrypted-image dump/patch (crashes on launch; kept for analysis only) |
-| `apply_patches.py` / `rollback.py` | Disk patch/rollback helpers (see note below) |
+On an authed day you will not see the password. To force a prompt:
 
-## Disk patching (not used — kept for reference)
-
-Patches in `patches/v420_patch1_868bbc56.json` apply only to a **decrypted memory dump**, which does not run standalone (encrypted-section loader). They also trip the self-integrity check. The supported path is the runtime launcher.
-
-## Rollback
-
-Baseline backup of the original exe + key files: `..\backups\v420_patch1_868bbc56\`.
-
-```bat
-python tools\rollback.py
+```powershell
+powershell -Verb RunAs -ExecutionPolicy Bypass -File tools\verify_clock.ps1
 ```
 
-## Legacy tool
+Check `tools/output/verify_timeline.txt`: success = no
+`Application requires password to start` window, CSP main window appears,
+`proc_alive=True`.
 
-`..\auto_password_simple.py` uses pywinauto `set_text()` / `WM_SETTEXT`, which itzmx update #33 targets (intermittent crashes). Prefer `deitzmx_launcher.py`.
+---
+
+## Caveats
+
+- **CSP reinstall/update** may wipe the folder — re-run deploy.
+- **Antivirus** may flag DLL shadowing or frida-gadget; allow if needed.
+- **Fallback targets** if `SHFolder` ever conflicts: `msimg32`, `uxtheme`,
+  `dwmapi` (all early, non-KnownDLL) — same `build_proxy.py --target …`.
+- **Do not modify `CLIPStudioPaint.exe`** — integrity check will kill it.
+
+---
+
+## Legacy external launcher
+
+The older `deitzmx_launcher.py` + `frida.spawn` path still works but requires
+running a separate Python process each launch. The baked-in proxy above replaces
+it for daily use.

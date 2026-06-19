@@ -3,3 +3,10 @@ tools/output/
 
 # Local backups of CSP install files
 backups/
+
+# Native build artifacts
+tools/native/*.dll
+tools/native/*.def
+
+# Python cache
+**/__pycache__/
