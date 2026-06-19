@@ -1,6 +1,13 @@
 # De-itzmx tooling outputs (regenerable)
 tools/output/
 
+# Bundled proxy payloads (large; built by stage_version_payload.py)
+versions/*/proxy/
+
+# PyInstaller
+build/
+dist/
+
 # Local backups of CSP install files
 backups/
 

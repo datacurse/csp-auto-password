@@ -4,9 +4,13 @@ Remove the itzmx anti-resale layer from CLIP Studio Paint v4.2.0 Patch1: daily
 password, website splash, tamper warnings, random pop-ups.
 
 **Recommended:** the baked-in patch — double-click CSP normally, no external
-launcher. See **[docs.md](docs.md)** for how it works (success write-up) and
-**[tools/README.md](tools/README.md)** for full technical history (what we tried,
-build/deploy/uninstall).
+launcher.
+
+**Easiest install:** build or download `deitzmx-patch.exe` (see [docs.md](docs.md)
+→ GUI installer). Russian UI with patch/unpatch buttons and version selector.
+
+See **[docs.md](docs.md)** for how the patch works and **[tools/README.md](tools/README.md)**
+for technical history (build/deploy/uninstall via PowerShell).
 
 ```powershell
 pip install lief

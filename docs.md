@@ -121,7 +121,35 @@ proxy DLLs, and reports `DEPLOY INCOMPLETE` if required files are missing.
 
 ---
 
-## Deploy (elevated)
+## GUI installer (recommended for end users)
+
+One exe bundles the five patch files and a Russian CustomTkinter UI (same style as
+[csp-lang-switch](https://github.com/datacurse/csp-lang-switch)):
+
+- **Version combo** — `4.2.0` today; `4.0.0` / `5.0.0` listed for future payloads
+- **Установить патч** / **Удалить патч** — install or remove the proxy payload
+- **Status** — detects CSP install, shows whether the patch is active
+- **Saved state** — `%LOCALAPPDATA%\deitzmx-patch\state.json` and `settings.json`
+
+Build the installer:
+
+```powershell
+pip install -r requirements.txt
+build_installer.bat
+```
+
+Output: `dist\deitzmx-patch.exe`. Run once; confirm UAC when prompted.
+
+Dev run without building exe:
+
+```powershell
+python tools\stage_version_payload.py --rebuild
+python src\main.py
+```
+
+---
+
+## Deploy manually (elevated)
 
 Close CSP completely (including system tray), then:
 
@@ -149,6 +177,11 @@ powershell -Verb RunAs -ExecutionPolicy Bypass -File tools\_deploy_hook.ps1
 Or re-run full `deploy_proxy.ps1`.
 
 ### Uninstall
+
+Virgin itzmx CSP **does not ship `SHFolder.dll`** in the install folder — our patch is
+purely additive (five new files). Uninstall must **delete** those files entirely;
+copying System32 `SHFolder.dll` into the folder or leaving the proxy behind breaks
+CSP startup. Inspect baseline with `tools\probe_install.ps1`.
 
 ```powershell
 powershell -Verb RunAs -ExecutionPolicy Bypass -File tools\restore_proxy.ps1 -Stem SHFolder
@@ -244,6 +277,9 @@ IE-class hooks alone are not enough.
 | `tools/restore_proxy.ps1` | Remove patch |
 | `tools/verify_clock.ps1` | Force password day test |
 | `tools/probe_splash.ps1` | Window timeline during startup |
+| `src/main.py` | GUI installer entry (CustomTkinter, Russian) |
+| `deitzmx-patch.spec` | PyInstaller spec for `dist/deitzmx-patch.exe` |
+| `build_installer.bat` | Stage payload + build installer exe |
 | `auto_password_simple.py` | Legacy external launcher (prefer patch) |
 
 ---

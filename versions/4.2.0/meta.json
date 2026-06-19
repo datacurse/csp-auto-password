@@ -1,0 +1,5 @@
+{
+  "csp_version": "4.2.0",
+  "proxy_stem": "SHFolder",
+  "notes": "itzmx Patch1 build; proxy payload staged by tools/stage_version_payload.py"
+}
