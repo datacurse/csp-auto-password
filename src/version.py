@@ -7,7 +7,7 @@ from pathlib import Path
 from paths import proxy_payload_dir
 
 # Shown in the version combo (future releases listed up front).
-SUPPORTED_VERSIONS: tuple[str, ...] = ("4.2.0", "4.0.0", "5.0.0")
+SUPPORTED_VERSIONS: tuple[str, ...] = ("5.0.0", "4.2.0")
 
 DEFAULT_VERSION = "5.0.0"
 PROXY_STEM = "SHFolder"

@@ -126,7 +126,7 @@ proxy DLLs, and reports `DEPLOY INCOMPLETE` if required files are missing.
 One exe bundles the five patch files and a Russian CustomTkinter UI (same style as
 [csp-lang-switch](https://github.com/datacurse/csp-lang-switch)):
 
-- **Version combo** — `4.2.0` today; `4.0.0` / `5.0.0` listed for future payloads
+- **Version combo** — `5.0.0` and `4.2.0` (only versions with bundled payloads)
 - **Установить патч** / **Удалить патч** — install or remove the proxy payload
 - **Status** — detects CSP install, shows whether the patch is active
 - **Saved state** — `%LOCALAPPDATA%\deitzmx-patch\state.json` and `settings.json`
