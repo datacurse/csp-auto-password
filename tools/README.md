@@ -99,11 +99,13 @@ we validated first.
 
 ### What the hook script does
 
-`frida_deitzmx.js` — **UI hooks only** (no memory patches; those trip tamper):
+`frida_deitzmx.js` — **UI hooks only** (no memory patches; those trip tamper).
+See **[docs.md](../docs.md)** for the current behavior (splash window classes,
+password hiding, deploy pitfalls). Summary:
 
-1. **Password** — find dialog by title, recurse `EnumChildWindows` for nested
-   `Edit`, paste password via clipboard + `WM_PASTE` (author-sanctioned), click OK.
-2. **Splash** — zero out `Sleep(3000–4000)` calls.
+1. **Password** — hide dialog, paste via clipboard + `WM_PASTE`, click OK.
+2. **Splash** — hide native `Window` class fullscreen splash + itzmx marketing
+   overlay; skip long `Sleep(1000–6000)` calls.
 3. **Tamper/marketing** — auto-dismiss matching `MessageBoxW/A` and dialog APIs.
 4. **Random doc popup** — block matching `ShellExecuteW` targets.
 

@@ -1,4 +1,4 @@
-// De-itzmx runtime bypass: UI hooks only (memory patches trigger language-file warning).
+﻿// De-itzmx runtime bypass: UI hooks only (memory patches trigger language-file warning).
 'use strict';
 
 function getExport(moduleName, exportName) {
@@ -42,6 +42,160 @@ function shouldBypass(text) {
     return true;
   }
   return false;
+}
+
+const PASSWORD =
+  'lai2 zi4 bbs.itzmx.com mian3 fei4 fen1 xiang3 fa1 xian4 fan4 mai4 ju3 bao4 cha4 ping2 tui4 kuan3 bbs.itzmx.com Always Free';
+
+const SW_HIDE = 0;
+const SWP_SHOWWINDOW = 0x0040;
+const ITZMX_POPUP_SUFFIX = '6571ddc4-b3aa-45e4-9d35-57c0c1e90ad5';
+const CF_UNICODETEXT = 13;
+const GMEM_MOVEABLE = 0x0002;
+const WM_PASTE = 0x0302;
+const BM_CLICK = 0x00f5;
+
+const FindWindowW = new NativeFunction(getExport('user32.dll', 'FindWindowW'), 'pointer', [
+  'pointer',
+  'pointer',
+]);
+const EnumChildWindows = new NativeFunction(getExport('user32.dll', 'EnumChildWindows'), 'int', [
+  'pointer',
+  'pointer',
+  'pointer',
+]);
+const GetClassNameW = new NativeFunction(getExport('user32.dll', 'GetClassNameW'), 'int', [
+  'pointer',
+  'pointer',
+  'int',
+]);
+const GetWindowTextW = new NativeFunction(getExport('user32.dll', 'GetWindowTextW'), 'int', [
+  'pointer',
+  'pointer',
+  'int',
+]);
+const SendMessageW = new NativeFunction(getExport('user32.dll', 'SendMessageW'), 'long', [
+  'pointer',
+  'uint',
+  'pointer',
+  'pointer',
+]);
+const PostMessageW = new NativeFunction(getExport('user32.dll', 'PostMessageW'), 'int', [
+  'pointer',
+  'uint',
+  'pointer',
+  'pointer',
+]);
+const ShowWindow = new NativeFunction(getExport('user32.dll', 'ShowWindow'), 'int', [
+  'pointer',
+  'int',
+]);
+const IsWindowVisible = new NativeFunction(getExport('user32.dll', 'IsWindowVisible'), 'int', [
+  'pointer',
+]);
+const GetWindowTextLengthW = new NativeFunction(
+  getExport('user32.dll', 'GetWindowTextLengthW'),
+  'int',
+  ['pointer']
+);
+const GetWindowThreadProcessId = new NativeFunction(
+  getExport('user32.dll', 'GetWindowThreadProcessId'),
+  'uint',
+  ['pointer', 'pointer']
+);
+const EnumWindows = new NativeFunction(getExport('user32.dll', 'EnumWindows'), 'int', [
+  'pointer',
+  'pointer',
+]);
+const GetWindowRect = new NativeFunction(getExport('user32.dll', 'GetWindowRect'), 'int', [
+  'pointer',
+  'pointer',
+]);
+const OpenClipboard = new NativeFunction(getExport('user32.dll', 'OpenClipboard'), 'int', [
+  'pointer',
+]);
+const EmptyClipboard = new NativeFunction(getExport('user32.dll', 'EmptyClipboard'), 'int', []);
+const SetClipboardData = new NativeFunction(
+  getExport('user32.dll', 'SetClipboardData'),
+  'pointer',
+  ['uint', 'pointer']
+);
+const CloseClipboard = new NativeFunction(getExport('user32.dll', 'CloseClipboard'), 'int', []);
+const GlobalAlloc = new NativeFunction(getExport('kernel32.dll', 'GlobalAlloc'), 'pointer', [
+  'uint',
+  'uint64',
+]);
+const GlobalLock = new NativeFunction(getExport('kernel32.dll', 'GlobalLock'), 'pointer', [
+  'pointer',
+]);
+const GlobalUnlock = new NativeFunction(getExport('kernel32.dll', 'GlobalUnlock'), 'int', [
+  'pointer',
+]);
+
+function getClass(hwnd) {
+  const buf = Memory.alloc(256 * 2);
+  GetClassNameW(hwnd, buf, 256);
+  return buf.readUtf16String();
+}
+
+function getText(hwnd) {
+  const buf = Memory.alloc(512 * 2);
+  GetWindowTextW(hwnd, buf, 512);
+  return buf.readUtf16String();
+}
+
+function getRect(hwnd) {
+  const rect = Memory.alloc(16);
+  if (GetWindowRect(hwnd, rect) === 0) {
+    return { w: 0, h: 0 };
+  }
+  const left = rect.readS32();
+  const top = rect.add(4).readS32();
+  const right = rect.add(8).readS32();
+  const bottom = rect.add(12).readS32();
+  return { w: right - left, h: bottom - top };
+}
+
+function shouldHideWindow(className, title, hwnd) {
+  const cls = (className || '').toLowerCase();
+  const ttl = title || '';
+  const lower = ttl.toLowerCase();
+
+  if (cls === 'internet explorer_server' || cls.indexOf('shell embedding') !== -1) {
+    return true;
+  }
+
+  // itzmx full-screen splash: untitled "Window" class at ~1024x576.
+  if (cls === 'window' && ttl.trim() === '' && hwnd && !hwnd.isNull()) {
+    const rect = getRect(hwnd);
+    if (rect.w >= 900 && rect.h >= 500) {
+      return true;
+    }
+  }
+
+  // itzmx marketing overlay (512x314), not generic CSP internals.
+  if (cls.indexOf(ITZMX_POPUP_SUFFIX) !== -1) {
+    return true;
+  }
+
+  if (
+    lower.indexOf('password') !== -1 ||
+    lower.indexOf('application requires') !== -1 ||
+    lower.indexOf('itzmx') !== -1 ||
+    lower.indexOf('anti-resale') !== -1
+  ) {
+    return true;
+  }
+  return shouldBypass(ttl);
+}
+
+function hideWindow(hwnd, reason) {
+  if (hwnd.isNull() || IsWindowVisible(hwnd) === 0) {
+    return false;
+  }
+  ShowWindow(hwnd, SW_HIDE);
+  send({ type: 'hide_window', reason: reason, class: getClass(hwnd), title: getText(hwnd) });
+  return true;
 }
 
 function readDialogTitle(templatePtr) {
@@ -118,7 +272,7 @@ hookMessageBox('MessageBoxA', false);
 Interceptor.attach(getExport('kernel32.dll', 'Sleep'), {
   onEnter(args) {
     const ms = args[0].toInt32();
-    if (ms >= 3000 && ms <= 4000) {
+    if (ms >= 1000 && ms <= 6000) {
       send({ type: 'bypass_splash_sleep', ms: ms });
       args[0] = ptr(0);
     }
@@ -135,87 +289,53 @@ Interceptor.attach(getExport('shell32.dll', 'ShellExecuteW'), {
   },
 });
 
-const PASSWORD =
-  'lai2 zi4 bbs.itzmx.com mian3 fei4 fen1 xiang3 fa1 xian4 fan4 mai4 ju3 bao4 cha4 ping2 tui4 kuan3 bbs.itzmx.com Always Free';
+Interceptor.attach(getExport('user32.dll', 'ShowWindow'), {
+  onEnter(args) {
+    const cmd = args[1].toInt32();
+    if (cmd === SW_HIDE) {
+      return;
+    }
+    const hwnd = args[0];
+    const cls = getClass(hwnd);
+    const title = getText(hwnd);
+    if (shouldHideWindow(cls, title, hwnd)) {
+      args[1] = ptr(SW_HIDE);
+      send({ type: 'block_show_window', class: cls, title: title, cmd: cmd });
+    }
+  },
+});
 
-// Frida getExportByName returns a NativePointer; functions must be wrapped in
-// NativeFunction before they can be called from JS.
-const FindWindowW = new NativeFunction(getExport('user32.dll', 'FindWindowW'), 'pointer', [
-  'pointer',
-  'pointer',
-]);
-const FindWindowExW = new NativeFunction(getExport('user32.dll', 'FindWindowExW'), 'pointer', [
-  'pointer',
-  'pointer',
-  'pointer',
-  'pointer',
-]);
-const EnumChildWindows = new NativeFunction(getExport('user32.dll', 'EnumChildWindows'), 'int', [
-  'pointer',
-  'pointer',
-  'pointer',
-]);
-const GetClassNameW = new NativeFunction(getExport('user32.dll', 'GetClassNameW'), 'int', [
-  'pointer',
-  'pointer',
-  'int',
-]);
-const GetWindowTextW = new NativeFunction(getExport('user32.dll', 'GetWindowTextW'), 'int', [
-  'pointer',
-  'pointer',
-  'int',
-]);
-const SendMessageW = new NativeFunction(getExport('user32.dll', 'SendMessageW'), 'long', [
-  'pointer',
-  'uint',
-  'pointer',
-  'pointer',
-]);
-const PostMessageW = new NativeFunction(getExport('user32.dll', 'PostMessageW'), 'int', [
-  'pointer',
-  'uint',
-  'pointer',
-  'pointer',
-]);
-const SetForegroundWindow = new NativeFunction(
-  getExport('user32.dll', 'SetForegroundWindow'),
-  'int',
-  ['pointer']
-);
-const GetWindowTextLengthW = new NativeFunction(
-  getExport('user32.dll', 'GetWindowTextLengthW'),
-  'int',
-  ['pointer']
-);
+Interceptor.attach(getExport('user32.dll', 'SetWindowPos'), {
+  onEnter(args) {
+    const flags = args[7].toInt32();
+    if ((flags & SWP_SHOWWINDOW) === 0) {
+      return;
+    }
+    const hwnd = args[0];
+    const cls = getClass(hwnd);
+    const title = getText(hwnd);
+    if (shouldHideWindow(cls, title, hwnd)) {
+      args[7] = ptr(flags & ~SWP_SHOWWINDOW);
+      send({ type: 'block_setwindowpos_show', class: cls, title: title });
+    }
+  },
+});
 
-const OpenClipboard = new NativeFunction(getExport('user32.dll', 'OpenClipboard'), 'int', [
-  'pointer',
-]);
-const EmptyClipboard = new NativeFunction(getExport('user32.dll', 'EmptyClipboard'), 'int', []);
-const SetClipboardData = new NativeFunction(
-  getExport('user32.dll', 'SetClipboardData'),
-  'pointer',
-  ['uint', 'pointer']
-);
-const CloseClipboard = new NativeFunction(getExport('user32.dll', 'CloseClipboard'), 'int', []);
-const GlobalAlloc = new NativeFunction(getExport('kernel32.dll', 'GlobalAlloc'), 'pointer', [
-  'uint',
-  'uint64',
-]);
-const GlobalLock = new NativeFunction(getExport('kernel32.dll', 'GlobalLock'), 'pointer', [
-  'pointer',
-]);
-const GlobalUnlock = new NativeFunction(getExport('kernel32.dll', 'GlobalUnlock'), 'int', [
-  'pointer',
-]);
-
-const CF_UNICODETEXT = 13;
-const GMEM_MOVEABLE = 0x0002;
-const WM_PASTE = 0x0302;
-const BM_CLICK = 0x00f5;
+Interceptor.attach(getExport('user32.dll', 'SetForegroundWindow'), {
+  onEnter(args) {
+    const hwnd = args[0];
+    if (shouldHideWindow(getClass(hwnd), getText(hwnd), hwnd)) {
+      this.block = true;
+    }
+  },
+  onLeave(retval) {
+    if (this.block) {
+      retval.replace(1);
+    }
+  },
+});
 
 function setClipboardUnicode(text) {
-  // Allocate a movable global buffer with the UTF-16 string + null terminator.
   const bytes = (text.length + 1) * 2;
   const hMem = GlobalAlloc(GMEM_MOVEABLE, uint64(bytes));
   if (hMem.isNull()) {
@@ -237,20 +357,6 @@ function setClipboardUnicode(text) {
   return ok;
 }
 
-function getClass(hwnd) {
-  const buf = Memory.alloc(256 * 2);
-  GetClassNameW(hwnd, buf, 256);
-  return buf.readUtf16String();
-}
-
-function getText(hwnd) {
-  const buf = Memory.alloc(512 * 2);
-  GetWindowTextW(hwnd, buf, 512);
-  return buf.readUtf16String();
-}
-
-// The password input is a nested Edit control (not a direct child); the dialog also
-// has a "&OK" Button. Both are only reachable via recursive EnumChildWindows.
 function findDialogControls(dialog) {
   const found = { edit: ptr(0), ok: ptr(0) };
   const cb = new NativeCallback(
@@ -273,6 +379,28 @@ function findDialogControls(dialog) {
   return found;
 }
 
+function sweepHiddenWindows() {
+  const selfPid = Process.id;
+  const pidBuf = Memory.alloc(4);
+  const cb = new NativeCallback(
+    function (hwnd, lparam) {
+      GetWindowThreadProcessId(hwnd, pidBuf);
+      if (pidBuf.readU32() !== selfPid || IsWindowVisible(hwnd) === 0) {
+        return 1;
+      }
+      const cls = getClass(hwnd);
+      const title = getText(hwnd);
+      if (shouldHideWindow(cls, title, hwnd)) {
+        hideWindow(hwnd, 'sweep');
+      }
+      return 1;
+    },
+    'int',
+    ['pointer', 'pointer']
+  );
+  EnumWindows(cb, ptr(0));
+}
+
 let submitted = false;
 
 function autoSubmitPassword() {
@@ -281,6 +409,8 @@ function autoSubmitPassword() {
   if (hwnd.isNull()) {
     return false;
   }
+
+  hideWindow(hwnd, 'password_dialog');
 
   const controls = findDialogControls(hwnd);
   if (controls.edit.isNull()) {
@@ -293,15 +423,11 @@ function autoSubmitPassword() {
       send({ type: 'clipboard_set_failed' });
       return false;
     }
-    SetForegroundWindow(hwnd);
-    // Author-sanctioned safe method: simulate a paste rather than WM_SETTEXT
-    // (update #33 only penalizes auto fast-input via SetText-style APIs).
     SendMessageW(edit, WM_PASTE, ptr(0), ptr(0));
     send({ type: 'password_pasted', hwnd: hwnd.toString(), edit: edit.toString() });
   }
 
   if (GetWindowTextLengthW(edit) < PASSWORD.length) {
-    // Paste didn't take yet; try again next tick.
     return false;
   }
 
@@ -319,8 +445,8 @@ function autoSubmitPassword() {
 
 const submitTimer = setInterval(function () {
   try {
+    sweepHiddenWindows();
     if (submitted) {
-      // Confirm the dialog is gone; if it reappeared, allow another submit.
       const titleBuf = Memory.allocUtf16String('Application requires password to start');
       if (FindWindowW(ptr(0), titleBuf).isNull()) {
         return;
@@ -331,6 +457,19 @@ const submitTimer = setInterval(function () {
   } catch (e) {
     send({ type: 'auto_submit_error', error: String(e) });
   }
-}, 250);
+}, 100);
+
+let sweepTicks = 0;
+const sweepTimer = setInterval(function () {
+  sweepTicks += 1;
+  try {
+    sweepHiddenWindows();
+  } catch (e) {
+    send({ type: 'sweep_error', error: String(e) });
+  }
+  if (sweepTicks >= 120) {
+    clearInterval(sweepTimer);
+  }
+}, 100);
 
 send({ type: 'ready' });
