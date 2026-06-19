@@ -22,14 +22,20 @@ _STATUS_ERR = ("#9b2226", "#e5383b")
 _STATUS_NEUTRAL = ("gray20", "gray70")
 
 
+_MIN_WIDTH = 520
+_MIN_HEIGHT = 220
+_CONTENT_WRAP = 480
+
+
 def _fit_window(root: ctk.CTk, main: ctk.CTkFrame) -> None:
     root.update_idletasks()
     root.update()
     root.update_idletasks()
-    width = max(root.winfo_reqwidth(), main.winfo_reqwidth() + 24)
-    height = max(root.winfo_reqheight(), main.winfo_reqheight() + 16)
+    width = max(_MIN_WIDTH, root.winfo_reqwidth(), main.winfo_reqwidth() + 32)
+    height = max(_MIN_HEIGHT, root.winfo_reqheight(), main.winfo_reqheight() + 24)
     w = root._reverse_window_scaling(width)
     h = root._reverse_window_scaling(height)
+    root.minsize(w, h)
     root.geometry(f"{w}x{h}")
     x = max(0, (root.winfo_screenwidth() - width) // 2)
     y = max(0, (root.winfo_screenheight() - height) // 2)
@@ -53,7 +59,9 @@ def run_gui() -> int:
     busy = False
 
     main = ctk.CTkFrame(root, fg_color="transparent")
-    main.grid(row=0, column=0, sticky="nw", padx=12, pady=8)
+    main.grid(row=0, column=0, sticky="nsew", padx=16, pady=12)
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
 
     ctk.CTkLabel(
         main,
@@ -75,28 +83,28 @@ def run_gui() -> int:
     version_combo.pack(side="left")
 
     version_hint = ctk.CTkLabel(
-        version_row,
+        main,
         text="",
         font=ctk.CTkFont(size=12),
         text_color="gray50",
-        wraplength=240,
+        wraplength=_CONTENT_WRAP,
         justify="left",
     )
-    version_hint.pack(side="left", padx=(10, 0))
+    version_hint.pack(anchor="w", pady=(4, 0))
 
     status_label = ctk.CTkLabel(
         main,
         text=i18n.t("status_checking"),
-        wraplength=360,
+        wraplength=_CONTENT_WRAP,
         justify="left",
         font=ctk.CTkFont(size=15, weight="bold"),
     )
-    status_label.pack(anchor="w", pady=(4, 0))
+    status_label.pack(anchor="w", pady=(8, 0))
 
     detail_label = ctk.CTkLabel(
         main,
         text="",
-        wraplength=360,
+        wraplength=_CONTENT_WRAP,
         justify="left",
         font=ctk.CTkFont(size=12),
         text_color="gray50",
@@ -106,32 +114,33 @@ def run_gui() -> int:
     progress = ctk.CTkProgressBar(main, mode="indeterminate")
 
     buttons = ctk.CTkFrame(main, fg_color="transparent")
-    buttons.pack(fill="x", pady=(14, 0))
+    buttons.pack(fill="x", pady=(16, 0))
+    buttons.grid_columnconfigure(0, weight=1)
 
     patch_btn = ctk.CTkButton(
-        buttons, text=i18n.t("btn_patch"), width=120, command=lambda: do_patch()
+        buttons, text=i18n.t("btn_patch"), width=140, command=lambda: do_patch()
     )
-    patch_btn.pack(side="right")
+    patch_btn.grid(row=0, column=2, sticky="e")
 
     unpatch_btn = ctk.CTkButton(
         buttons,
         text=i18n.t("btn_unpatch"),
-        width=90,
+        width=110,
         fg_color="transparent",
         border_width=1,
         command=lambda: do_unpatch(),
     )
-    unpatch_btn.pack(side="right", padx=(0, 8))
+    unpatch_btn.grid(row=0, column=1, padx=(0, 8), sticky="e")
 
     close_btn = ctk.CTkButton(
         buttons,
         text=i18n.t("btn_close"),
-        width=90,
+        width=110,
         fg_color="transparent",
         border_width=1,
         command=root.destroy,
     )
-    close_btn.pack(side="left")
+    close_btn.grid(row=0, column=0, sticky="w")
 
     def set_busy(on: bool, message: str | None = None) -> None:
         nonlocal busy

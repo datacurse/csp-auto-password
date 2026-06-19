@@ -1,0 +1,6 @@
+{
+  "csp_version": "5.0.0",
+  "proxy_stem": "SHFolder",
+  "exe_sha256": "CD27DE50E20AEF9A3ECCBB21D4C52D9044C59E3A6DEA5DFC0D7638F5AD2709CD",
+  "notes": "itzmx build; validated with SHFolder proxy + frida_deitzmx.js hooks"
+}

@@ -1,7 +1,7 @@
 # Baked-in patch (build_proxy.py)
 lief>=0.14.0
 
-# GUI installer (deitzmx-patch.exe)
+# GUI installer (csp-password-patch.exe)
 customtkinter>=5.2.0
 pyinstaller>=6.0.0
 

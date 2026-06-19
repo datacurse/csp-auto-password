@@ -138,7 +138,7 @@ pip install -r requirements.txt
 build_installer.bat
 ```
 
-Output: `dist\deitzmx-patch.exe`. Run once; confirm UAC when prompted.
+Output: `dist\csp-password-patch.exe`. Run once; confirm UAC when prompted.
 
 Dev run without building exe:
 
@@ -278,7 +278,7 @@ IE-class hooks alone are not enough.
 | `tools/verify_clock.ps1` | Force password day test |
 | `tools/probe_splash.ps1` | Window timeline during startup |
 | `src/main.py` | GUI installer entry (CustomTkinter, Russian) |
-| `deitzmx-patch.spec` | PyInstaller spec for `dist/deitzmx-patch.exe` |
+| `deitzmx-patch.spec` | PyInstaller spec for `dist/csp-password-patch.exe` |
 | `build_installer.bat` | Stage payload + build installer exe |
 | `auto_password_simple.py` | Legacy external launcher (prefer patch) |
 

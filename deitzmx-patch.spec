@@ -6,7 +6,7 @@ Build:
   python tools/stage_version_payload.py --rebuild
   pyinstaller deitzmx-patch.spec
 
-Output: dist/deitzmx-patch.exe
+Output: dist/csp-password-patch.exe
 """
 
 from pathlib import Path
@@ -64,7 +64,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="deitzmx-patch",
+    name="csp-password-patch",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

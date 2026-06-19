@@ -6,7 +6,7 @@ password, website splash, tamper warnings, random pop-ups.
 **Recommended:** the baked-in patch — double-click CSP normally, no external
 launcher.
 
-**Easiest install:** build or download `deitzmx-patch.exe` (see [docs.md](docs.md)
+**Easiest install:** build or download `csp-password-patch.exe` (see [docs.md](docs.md)
 → GUI installer). Russian UI with patch/unpatch buttons and version selector.
 
 See **[docs.md](docs.md)** for how the patch works and **[tools/README.md](tools/README.md)**

@@ -45,7 +45,7 @@ function shouldBypass(text) {
 }
 
 const PASSWORD =
-  'lai2 zi4 bbs.itzmx.com mian3 fei4 fen1 xiang3 fa1 xian4 fan4 mai4 ju3 bao4 cha4 ping2 tui4 kuan3 bbs.itzmx.com Always Free';
+  'lai2 zi4 bbs.itzmx.com mian3 fei4 fen1 xiang3 fa1 xian4 fan4 mai4 tui4 kuan3 ju3 bao4 cha4 ping2 bbs.itzmx.com Always Free';
 
 const SW_HIDE = 0;
 const SWP_SHOWWINDOW = 0x0040;
