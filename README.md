@@ -1,36 +1,27 @@
-# CLIP Studio Paint — de-itzmx patch
+# csp-password-patch
 
-Remove the itzmx anti-resale layer from CLIP Studio Paint v4.2.0 Patch1: daily
-password, website splash, tamper warnings, random pop-ups.
+Патч для **Clip Studio Paint 4.2.0 и 5.0.0**, убирающий защиту itzmx: ежедневный пароль, заставку с сайтом, предупреждения и всплывающие окна. Только для Windows.
 
-**Recommended:** the baked-in patch — double-click CSP normally, no external
-launcher.
+## Что это
 
-**Easiest install:** build or download `csp-password-patch.exe` (see [docs.md](docs.md)
-→ GUI installer). Russian UI with patch/unpatch buttons and version selector.
+Некоторые сборки Clip Studio Paint (itzmx) при каждом запуске требуют пароль, показывают полноэкранную заставку и рекламные окна. Это мешает работе.
 
-See **[docs.md](docs.md)** for how the patch works and **[tools/README.md](tools/README.md)**
-for technical history (build/deploy/uninstall via PowerShell).
+Эта программа устанавливает патч в папку Clip Studio Paint. После этого CSP запускается как обычно — двойным щелчком по ярлыку, без внешнего лаунчера. Пароль и заставка itzmx больше не мешают.
 
-```powershell
-pip install lief
-python tools\build_proxy.py --target SHFolder --source-dir C:\Windows\System32
-powershell -Verb RunAs -ExecutionPolicy Bypass -File tools\deploy_proxy.ps1 -Stem SHFolder
-```
+## Как это работает
 
-Uninstall: `tools\restore_proxy.ps1 -Stem SHFolder` (elevated).
+Программа копирует небольшой патч в папку установки Clip Studio Paint. Сам файл `CLIPStudioPaint.exe` не меняется. Патч можно удалить в любой момент — тогда CSP снова будет показывать пароль и заставку itzmx.
 
----
+Важно: перед установкой или удалением патча **закройте Clip Studio Paint** полностью, включая иконку в трее.
 
-## Legacy auto-password tool
+## Как скачать и запустить
 
-The original pywinauto-based launcher (`auto_password_simple.py`) still exists
-for installs without the baked-in patch. It is detected/intermittent with itzmx
-update #33; prefer the patch above.
+1. Скачайте файл `csp-password-patch.exe` со [страницы релизов](https://github.com/datacurse/csp-auto-password/releases/latest).
+2. **Закройте Clip Studio Paint**, если она открыта.
+3. Запустите скачанный файл двойным щелчком.
+4. В открывшемся окне выберите **версию CSP** (программа определит установленную автоматически) и нажмите «Установить». Windows один раз спросит разрешение на изменения. Согласитесь.
+5. Откройте Clip Studio Paint как обычно — без пароля и без заставки itzmx.
 
-```bat
-pip install -r requirements.txt
-python auto_password_simple.py
-```
+Готово. Чтобы вернуть исходное поведение, снова запустите программу и нажмите «Удалить».
 
-Build standalone exe: `build_simple.bat`
+Если установлена неподдерживаемая версия CSP, программа покажет предупреждение и не позволит установить патч.
