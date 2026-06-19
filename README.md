@@ -16,7 +16,7 @@
 
 ## Как скачать и запустить
 
-1. Скачайте файл `csp-password-patch.exe` со [страницы релизов](https://github.com/datacurse/csp-auto-password/releases/latest).
+1. Скачайте файл `csp-password-patch.exe` со [страницы релизов](https://github.com/datacurse/csp-password-patch/releases/latest).
 2. **Закройте Clip Studio Paint**, если она открыта.
 3. Запустите скачанный файл двойным щелчком.
 4. В открывшемся окне выберите **версию CSP** (программа определит установленную автоматически) и нажмите «Установить». Windows один раз спросит разрешение на изменения. Согласитесь.
